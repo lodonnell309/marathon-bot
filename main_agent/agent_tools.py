@@ -1,331 +1,251 @@
-from google.adk.agents import Agent
-import sqlite3
 import time
-from stravalib import Client
-from flask import current_app
 import logging
 from typing import List, Optional
-from pydantic import BaseModel, Field 
 
-def get_athlete_id_by_telegram_chat_id(db_path: str,telegram_chat_id: int) -> Optional[int]:
-    """
-    Return the Strava athlete ID for a given Telegram chat ID.
+from sqlalchemy import inspect, text
+from sqlalchemy.exc import SQLAlchemyError
+from pydantic import BaseModel, Field
 
-    inputs: db_path: str - Path to the SQLite database file (e.g., 'strava.db')
-                telegram_chat_id: int - The Telegram chat ID to look up
-    outputs: Optional[int] - The Strava athlete ID if found, otherwise None.
-    """
-    with sqlite3.connect(db_path) as conn:
-        row = conn.execute("""
-        SELECT athlete_id FROM tokens WHERE telegram_chat_id = ?
-        """, (telegram_chat_id,)).fetchone()
-        return row[0] if row else None
+from database import get_db_session, engine
+from models import Activity, MarathonPlan, Meal, UserTarget
 
+#### helper to get date
 def get_current_date():
     """
     Return the current date in YYYY-MM-DD format.
     """
     return time.strftime("%Y-%m-%d")
 
-def list_tables_in_db(db_path: str) -> list:
+def list_tables_in_db() -> list:
     """
-    List all tables in the SQLite database.
+    List all user-facing tables in database.
     
-    inputs: db_path: str - Path to the SQLite database file
     outputs: list of table names in the database
     """
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = [row[0] for row in cursor.fetchall()]
-    except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
-        tables = []
-    finally:
-        conn.close()
+    with get_db_session() as session:
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        # Exclude ADK's internal session tables and the tokens table
+        tables_to_exclude = {'tokens','adk_sessions','adk_session_messages'}
+        user_facing_tables = [table for table in tables if table not in tables_to_exclude]
+        return user_facing_tables
 
-    if 'tokens' in tables:
-        tables.remove('tokens') 
-    
-    return tables
-
-def get_strava_db_schema(db_path:str,table_name:str) -> dict:
+def get_strava_db_schema(table_name: str) -> dict:
     """
-    Returns the schema for the specified table
-    inputs: db_path: str - Path to the SQLite database file
+    Returns the schema for the specified table using SQLAlchemy introspection.
+    inputs:
              table_name: str - Name of the table to get the schema for
     outputs: dict - Dictionary containing the table schema with column names as keys and their types as values
     """
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
     try:
-        cursor.execute(f"PRAGMA table_info({table_name});")
-        schema = {row[1]: row[2] for row in cursor.fetchall()}
-    except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
-        schema = {}
-    finally:
-        conn.close()
-    
-    return schema
+        with get_db_session() as session:
+            inspector = inspect(engine)
+            columns = inspector.get_columns(table_name)
+            schema = {column['name']: str(column['type']) for column in columns}
+            return schema
+    except Exception as e:
+        logging.error(f"An error occurred getting schema for table '{table_name}': {e}")
+        return {}
 
-def execute_query(db_path: str, query: str, strava_athlete_id: int) -> list:
+def execute_query(query: str, strava_athlete_id: int) -> list:
     """
-    Execute a query on the SQLite database and return the results as a python dictionary.
+    Execute a query on the database and return the results.
     This function enforces that all queries must be filtered by athlete_id to ensure data privacy.
 
-    inputs: db_path: str - Path to the SQLite database file
+    inputs:
             query: str - The SQL query to execute, e.g., "SELECT * FROM activities LIMIT 5;"
             strava_athlete_id: int - The ID of the authenticated Strava athlete.
     outputs: list of dictionaries containing the query results
     """
     logging.info(f"Executing query: {query} for athlete_id: {strava_athlete_id}")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
     
+    # Check if the query is a SELECT statement for security
+    if not query.strip().upper().startswith("SELECT"):
+        logging.error("Only SELECT queries are allowed for security reasons.")
+        return []
+
+    # Use SQLAlchemy's text() construct for raw SQL execution
     try:
-        secure_query = ""
-        
-        # Check if the query is a SELECT statement (for security)
-        if not query.upper().strip().startswith("SELECT"):
-            logging.error("Only SELECT queries are allowed for security reasons.")
-            return []
+        with get_db_session() as session:
+            # We'll use a `text` construct for raw SQL, but we'll sanitize it
+            # by adding the athlete_id condition.
+            if 'WHERE' in query.upper():
+                secure_query = query.replace('WHERE', f'WHERE athlete_id = {strava_athlete_id} AND ', 1)
+            else:
+                secure_query = f"{query.rstrip(';')} WHERE athlete_id = {strava_athlete_id};"
 
-        # We will now use f-strings to inject the athlete_id, which is simpler and more reliable here.
-        # This bypasses the parameterized query issue.
-        if 'WHERE' in query.upper():
-            # If so, append to the existing WHERE clause
-            secure_query = query.replace('WHERE', f'WHERE athlete_id = {strava_athlete_id} AND ', 1)
-        else:
-            # If not, add a WHERE clause to filter by athlete_id
-            secure_query = f"{query.rstrip(';')}' WHERE athlete_id = {strava_athlete_id};"
-        
-        logging.info(f"Executing secure query: {secure_query}") # Log the query for debugging
-        
-        cursor.execute(secure_query)
-        columns = [column[0] for column in cursor.description]
-        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-    except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
-        results = []
-    finally:
-        conn.close()
-    
-    return results
+            logging.info(f"Executing secure query: {secure_query}")
+            
+            result = session.execute(text(secure_query))
+            columns = result.keys()
+            results = [dict(zip(columns, row)) for row in result]
+            return results
+    except SQLAlchemyError as e:
+        logging.error(f"An SQLAlchemy error occurred: {e}")
+        return []
 
-# --- NEW: Define a Pydantic model for the plan_details items ---
 class PlanDetailsItem(BaseModel):
     date: str = Field(..., description="The date of the workout in 'YYYY-MM-DD' format.")
     run_type: str = Field(..., description="The type of run (e.g., 'Easy Run', 'Long Run', 'Tempo').")
     distance_miles: float = Field(..., description="The distance for the run in miles.")
 
-# --- Corrected create_marathon_plan function signature ---
 def create_marathon_plan(athlete_id: int, start_date: str, plan_details: List[PlanDetailsItem]) -> str:
     """
     Creates a new marathon training plan for a user and stores it in the marathon_plan table.
     It clears any existing plan for the athlete and inserts the new one.
-
-    inputs:
-        athlete_id: int - The ID of the authenticated Strava athlete.
-        start_date: str - The date the plan should start in 'YYYY-MM-DD' format.
-        plan_details: list - A list of dictionaries, where each dictionary represents a workout.
-    outputs: A string indicating the success or failure of the operation.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
     try:
-        cursor.execute("DELETE FROM marathon_plan WHERE athlete_id = ?", (athlete_id,))
-
-        logging.info(f'first 5 workouts in plan_details: {plan_details[:5]}') # Log the first 5 workouts for debugging
-        for workout in plan_details:
-            cursor.execute(
-                """
-                INSERT INTO marathon_plan (athlete_id, date, run_type, distance_miles)
-                VALUES (?, ?, ?, ?)
-                """,
-                # --- NEW: Access attributes from the Pydantic model ---
-                (athlete_id, workout['date'], workout['run_type'], workout['distance_miles'])
-                # --- END NEW ---
-            )
-        
-        conn.commit()
-        logging.info(f"Successfully created a marathon plan for athlete {athlete_id} starting on {start_date}.")
-        return f"Marathon plan created successfully for athlete ID {athlete_id}."
+        with get_db_session() as session:
+            # First, delete any existing plan for this athlete
+            session.query(MarathonPlan).filter(MarathonPlan.athlete_id == athlete_id).delete()
+            
+            # Then, insert the new plan
+            for workout in plan_details:
+                new_workout = MarathonPlan(
+                    athlete_id=athlete_id,
+                    date=workout.date,
+                    run_type=workout.run_type,
+                    distance_miles=workout.distance_miles
+                )
+                session.add(new_workout)
+            
+            session.commit()
+            logging.info(f"Successfully created a marathon plan for athlete {athlete_id} starting on {start_date}.")
+            return f"Marathon plan created successfully for athlete ID {athlete_id}."
     
-    except (sqlite3.Error, KeyError) as e:
-        conn.rollback()
+    except SQLAlchemyError as e:
         logging.error(f"Failed to create marathon plan for athlete {athlete_id}: {e}")
         return f"Failed to create marathon plan: {e}"
-    finally:
-        conn.close()
 
 def delete_marathon_plan(athlete_id: int) -> str:
-    """
-    Deletes the marathon training plan for a user.
-
-    inputs:
-        athlete_id: int - The ID of the authenticated Strava athlete.
-    outputs: A string indicating the success or failure of the operation.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
+    """Deletes the marathon training plan for a user."""
     try:
-        cursor.execute("DELETE FROM marathon_plan WHERE athlete_id = ?", (athlete_id,))
-        conn.commit()
-        
-        if cursor.rowcount == 0:
-            logging.warning(f"No marathon plan found for athlete {athlete_id} to delete.")
-            return f"Warning: No marathon plan found for athlete ID {athlete_id}."
-        
-        logging.info(f"Successfully deleted marathon plan for athlete {athlete_id}.")
-        return f"Marathon plan deleted successfully for athlete ID {athlete_id}."
-
-    except sqlite3.Error as e:
-        conn.rollback()
+        with get_db_session() as session:
+            result = session.query(MarathonPlan).filter(MarathonPlan.athlete_id == athlete_id).delete()
+            session.commit()
+            
+            if result == 0:
+                logging.warning(f"No marathon plan found for athlete {athlete_id} to delete.")
+                return f"Warning: No marathon plan found for athlete ID {athlete_id}."
+            
+            logging.info(f"Successfully deleted marathon plan for athlete {athlete_id}.")
+            return f"Marathon plan deleted successfully for athlete ID {athlete_id}."
+    
+    except SQLAlchemyError as e:
         logging.error(f"Failed to delete marathon plan for athlete {athlete_id}: {e}")
         return f"Failed to delete marathon plan: {e}"
-    finally:
-        conn.close()
 
 def update_marathon_plan(athlete_id: int, date: str, new_run_type: str, new_distance_miles: float) -> str:
-    """
-    Updates a single workout in the marathon training plan for a user on a specific date.
-
-    inputs:
-        athlete_id: int - The ID of the authenticated Strava athlete.
-        date: str - The date of the workout to update in 'YYYY-MM-DD' format.
-        new_run_type: str - The new type of run (e.g., 'Tempo Run', 'Long Run').
-        new_distance_miles: float - The new distance for the run in miles.
-    outputs: A string indicating the success or failure of the operation.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
+    """Updates a single workout in the marathon training plan for a user on a specific date."""
     try:
-        cursor.execute(
-            """
-            UPDATE marathon_plan
-            SET run_type = ?, distance_miles = ?
-            WHERE athlete_id = ? AND date = ?
-            """,
-            (new_run_type, new_distance_miles, athlete_id, date)
-        )
-        conn.commit()
-        
-        if cursor.rowcount == 0:
-            logging.warning(f"No workout found for athlete {athlete_id} on date {date} to update.")
-            return f"Warning: No workout found for {date} to update."
-        
-        logging.info(f"Successfully updated marathon plan for athlete {athlete_id} on {date}.")
-        return f"Marathon plan updated successfully for the workout on {date}."
-
-    except sqlite3.Error as e:
-        conn.rollback()
+        with get_db_session() as session:
+            workout_to_update = session.query(MarathonPlan).filter(
+                MarathonPlan.athlete_id == athlete_id,
+                MarathonPlan.date == date
+            ).one_or_none()
+            
+            if workout_to_update:
+                workout_to_update.run_type = new_run_type
+                workout_to_update.distance_miles = new_distance_miles
+                session.commit()
+                logging.info(f"Successfully updated marathon plan for athlete {athlete_id} on {date}.")
+                return f"Marathon plan updated successfully for the workout on {date}."
+            else:
+                logging.warning(f"No workout found for athlete {athlete_id} on date {date} to update.")
+                return f"Warning: No workout found for {date} to update."
+    
+    except SQLAlchemyError as e:
         logging.error(f"Failed to update marathon plan for athlete {athlete_id}: {e}")
         return f"Failed to update marathon plan: {e}"
-    finally:
-        conn.close()
 
-
-def upload_meal_to_db(db_path: str, strava_athlete_id:int, meal_name: str,
+def upload_meal_to_db(athlete_id:int, meal_name: str,
                       protein_grams: float, carbs_grams: float,
                       fat_grams: float, calories: float) -> str:
-    """
-    Creates an entry in the meals table in the Strava SQLite database.
-    
-    meals table schema:
-        meal_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        meal_name TEXT NOT NULL,
-        protein_grams REAL,
-        carbs_grams REAL,
-        fat_grams REAL,
-        calories REAL,
-        athlete_id INTEGER,
-        FOREIGN KEY (athlete_id) REFERENCES tokens(athlete_id)
-    
-    Inputs:
-        db_path: the path to the database (e.g., 'strava.db')
-        athlete_id: the strava_athlete_id of the user
-        meal_name: the name of the meal
-        protein_grams: the number of grams of protein in the meal
-        carbs_grams: the number of grams of carbs in the meal
-        fat_grams: the number of grams of fat in the meal
-        calories: the number of calories in the meal
-    
-    Outputs:
-        Result of the database entry indicating success or failure
-    """
+    """Creates an entry in the meals table in the database."""
     try:
-        conn = sqlite3.connect(db_path)
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO meals (meal_name, protein_grams, carbs_grams, fat_grams, calories, athlete_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (meal_name, protein_grams, carbs_grams, fat_grams, calories, strava_athlete_id))
-        conn.commit()
-        return f"Meal '{meal_name}' successfully added for athlete_id {strava_athlete_id}."
-    except Exception as e:
+        with get_db_session() as session:
+            new_meal = Meal(
+                athlete_id=athlete_id,
+                meal_name=meal_name,
+                protein_grams=protein_grams,
+                carbs_grams=carbs_grams,
+                fat_grams=fat_grams,
+                calories=calories
+            )
+            session.add(new_meal)
+            session.commit()
+            return f"Meal '{meal_name}' successfully added for athlete_id {athlete_id}."
+    except SQLAlchemyError as e:
+        logging.error(f"Failed to add meal: {e}")
         return f"Failed to add meal: {e}"
-    finally:
-        conn.close()
 
-def update_user_targets(db_path: str, athlete_id: int,
+def update_user_targets(athlete_id: int,
                         target_protein_grams: float,
                         target_carbs_grams: float,
                         target_fat_grams: float,
                         target_calories: float):
-    """
-    Updates the user's target macronutrients in the user_targets table in the Strava SQLite database.
-    input:
-        db_path: the path to the database (e.g., 'strava.db')
-        athlete_id: the strava_athlete_id of the user
-        target_protein_grams: the number of grams of protein the user wants to eat
-        target_carbs_grams: the number of grams of carbs the user wants to eat
-        target_fat_grams: the number of grams of fat the user wants to eat
-        target_calories: the number of calories the user wants to eat
-    output:
-        Result of the database entry indicating success or failure
-    """
+    """Updates the user's target macronutrients in the user_targets table."""
     try:
-        conn = sqlite3.connect(db_path)
-        c = conn.cursor()
-        c.execute('''
-            INSERT OR REPLACE INTO user_targets (athlete_id, target_protein_grams, target_carbs_grams, target_fat_grams, target_calories)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (athlete_id, target_protein_grams, target_carbs_grams, target_fat_grams, target_calories))
-        conn.commit()
-        return f"User targets successfully updated for athlete_id {athlete_id}."
-    except Exception as e:
+        with get_db_session() as session:
+            user_target = session.get(UserTarget, athlete_id)
+            if not user_target:
+                user_target = UserTarget(athlete_id=athlete_id)
+                session.add(user_target)
+            
+            user_target.target_protein_grams = target_protein_grams
+            user_target.target_carbs_grams = target_carbs_grams
+            user_target.target_fat_grams = target_fat_grams
+            user_target.target_calories = target_calories
+            
+            session.commit()
+            return f"User targets successfully updated for athlete_id {athlete_id}."
+    except SQLAlchemyError as e:
+        logging.error(f"Failed to update user targets: {e}")
         return f"Failed to update user targets: {e}"
-    finally:
-        conn.close()
-
 
 def get_last_x_runs(strava_athlete_id: int, x: int) -> list:
-    """
-    Gets the last x runs for a given athlete.
-    input:
-        strava_athlete_id: int
-        x: int
-    output:
-        list of dictionaries
-    """
+    """Gets the last x runs for a given athlete."""
     try:
-        conn = sqlite3.connect("strava.db")
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM activities WHERE athlete_id = ? ORDER BY start_date_local DESC LIMIT ?",
-            (strava_athlete_id, x)
-        )
-        results = cursor.fetchall()
-        columns = [col[0] for col in cursor.description]
-        conn.close()
-        return [dict(zip(columns, row)) for row in results]
-    except Exception as e:
+        with get_db_session() as session:
+            runs = session.query(Activity).filter(Activity.athlete_id == strava_athlete_id)\
+                          .order_by(Activity.start_date_local.desc())\
+                          .limit(x)\
+                          .all()
+            
+            results = [run.__dict__ for run in runs]
+            # Remove SQLAlchemy's internal state attribute
+            for res in results:
+                res.pop('_sa_instance_state', None)
+            return results
+    except SQLAlchemyError as e:
         logging.error(f"Error in get_last_x_runs: {e}")
         return []
+
+def get_recent_run_summary(strava_athlete_id: int, x: int) -> str:
+    """
+    Retrieves and summarizes the last x runs for a user.
+    """
+    try:
+        runs = get_last_x_runs(strava_athlete_id, x)
+        if not runs:
+            return "No runs found for your account."
+
+        summary = f"Your last {len(runs)} runs:\n"
+        for i, run in enumerate(runs):
+            name = run.get('name', 'N/A')
+            distance = round(run.get('distance_miles', 0), 2)
+            moving_time = run.get('moving_time_minutes', 0)
+            date = run.get('start_date_local', 'N/A').strftime('%Y-%m-%d')
+            summary += f"{i+1}. '{name}' on {date}: {distance} miles in {moving_time} minutes.\n"
+        return summary
+
+    except Exception as e:
+        return f"An error occurred while summarizing your runs: {e}"
+
+
+def transfer_to_agent(agent_name: str) -> str:
+    """
+    Transfers the conversation to another agent.
+    This is an ADK-specific tool.
+    """
+    return f"Transferring to {agent_name}."
