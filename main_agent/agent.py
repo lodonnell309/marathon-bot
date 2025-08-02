@@ -1,4 +1,3 @@
-
 from google.adk.agents import Agent
 import sqlite3
 import time
@@ -80,6 +79,12 @@ motivation_agent = Agent(
         - `create_marathon_plan`: Generates a new marathon training plan.
         - `delete_marathon_plan`: Deletes an existing plan.
 
+        **New Instruction**: If the user's message is a system-generated prompt that indicates a new activity has been created 
+        (e.g., "Strava activity created with ID..."), 
+        1. you should first call `get_last_x_runs` with a value of `1` to get the details of the most recent run. 
+        2. Then, use this information to update the user's marathon plan via `update_marathon_plan` and finally, send a motivational message.
+        Do not send a message until you have completed the above two steps.
+
         Stay focused, keep the user accountable, and remind them: stay hard.
         Always assume the database path is 'strava.db'.
 
@@ -133,6 +138,8 @@ main_agent = Agent(
         3. Motivation Agent: Motivates the user after they complete a workout, updating their marathon plan accordingly.
 
         You will delegate tasks to these agents based on the user's requests.
+        
+        **New Instruction**: If the user's message is a system-generated prompt that indicates a new activity has been created (e.g., "Strava activity created with ID..."), you should immediately delegate the task to the `motivation_agent`.
         """,
     sub_agents=[
         strava_agent,
