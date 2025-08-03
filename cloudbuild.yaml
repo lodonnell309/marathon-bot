@@ -6,8 +6,8 @@ steps:
     entrypoint: 'bash'
     args:
       - '-c'
-      - |
-        pip install -r requirements.txt && pytest
+      - 'export PYTHONPATH=. && pip install -r requirements.txt && pytest'
+
 
   # 2. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
