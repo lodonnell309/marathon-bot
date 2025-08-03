@@ -8,11 +8,11 @@ steps:
       - '-c'
       - 'export PYTHONPATH=. && export TESTING=true && pip install -r requirements.txt && pytest'
 
-  # 1.5 Debug environment variables
-  - name: 'alpine'
-    id: 'debug-env'
-    entrypoint: 'sh'
-    args: ['-c', 'echo "IMAGE TAG: ${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}" && printenv | grep -E "PROJECT_ID|_GCR_HOSTNAME|_REPO_NAME|COMMIT_SHA"']
+  # # 1.5 Debug environment variables
+  # - name: 'alpine'
+  #   id: 'debug-env'
+  #   entrypoint: 'sh'
+  #   args: ['-c', 'echo "IMAGE TAG: ${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}" && printenv | grep -E "PROJECT_ID|_GCR_HOSTNAME|_REPO_NAME|COMMIT_SHA"']
 
   # 2. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
