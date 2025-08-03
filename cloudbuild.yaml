@@ -10,6 +10,7 @@ steps:
 
   # 2. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
     args:
       - 'build'
       - '-t'
@@ -18,9 +19,11 @@ steps:
 
   # 3. Push the container image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
     args:
       - 'push'
       - '${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
+    waitFor: ['build-image']
 
   # 4. Deploy the container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -42,8 +45,8 @@ steps:
       - '--update-secrets=STRAVA_VERIFY_TOKEN=STRAVA_VERIFY_TOKEN:latest'
       - '--update-secrets=TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest'
       - '--update-secrets=DATABASE_URL=DATABASE_URL:latest'
-    # Capture the service URL after deployment
-    waitFor: ['-']
+    # This step needs the deployment to finish first
+    waitFor: ['push-image']
     # The 'run deploy' command can be slow, so we give it more time
     timeout: 600s
     env:
