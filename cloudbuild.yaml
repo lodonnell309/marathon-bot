@@ -8,12 +8,6 @@ steps:
       - '-c'
       - 'export PYTHONPATH=. && export TESTING=true && pip install -r requirements.txt && pytest'
 
-  # # 1.5 Debug environment variables
-  # - name: 'alpine'
-  #   id: 'debug-env'
-  #   entrypoint: 'sh'
-  #   args: ['-c', 'echo "IMAGE TAG: ${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}" && printenv | grep -E "PROJECT_ID|_GCR_HOSTNAME|_REPO_NAME|COMMIT_SHA"']
-
   # 2. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-image'
@@ -26,7 +20,7 @@ steps:
   # 3. Authenticate and Push the container image to Artifact Registry in a single step.
   # This more robust pattern ensures the docker client is correctly authenticated
   # in the same environment where the push occurs, avoiding state-sharing issues.
-  - name: 'gcr.io/cloud-builders/gcloud' # This image contains both gcloud and docker
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk' # This image contains both gcloud and docker
     id: 'push-image'
     entrypoint: 'bash'
     args:
@@ -102,7 +96,7 @@ steps:
   #   secretEnv:
   #     - 'STRAVA_CLIENT_ID'
   #     - 'STRAVA_CLIENT_SECRET'
-  #     - 'STRAVA_VERIFY_TOKEN' #
+  #     - 'STRAVA_VERIFY_TOKEN'
 
 # Store the image in Artifact Registry
 images:
