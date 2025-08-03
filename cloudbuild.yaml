@@ -23,7 +23,7 @@ steps:
       - 'push'
       - '${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
 
-  # 4. Deploy the container image to Cloud Run
+  # 4. Deploy the container image to Cloud Run test
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
