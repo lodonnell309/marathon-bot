@@ -23,18 +23,26 @@ steps:
       - '${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
       - '.'
 
-  # 3. Authenticate Docker with Artifact Registry.
+ # 3. Authenticate Docker with Artifact Registry.
   # We set DOCKER_CONFIG to a path in the shared /workspace volume so the
   # credentials are created in a location accessible to subsequent steps.
-  - name: 'gcr.io/cloud-builders/gcloud' # This image contains both gcloud and docker
-    id: 'push-image'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        gcloud auth configure-docker ${_GCR_HOSTNAME} --quiet && \
-        docker push ${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'auth-docker'
+    entrypoint: 'gcloud'
+    args: ['auth', 'configure-docker', '${_GCR_HOSTNAME}']
     waitFor: ['build-image']
+    env:
+      - 'DOCKER_CONFIG=/workspace/.docker'
+
+  # 4. Push the container image to Artifact Registry.
+  # This step uses the credentials configured in the previous step by
+  # pointing to the same DOCKER_CONFIG path in the shared workspace.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args: ['push', '${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}']
+    waitFor: ['auth-docker']
+    env:
+      - 'DOCKER_CONFIG=/workspace/.docker'
 
   # 5. Deploy the container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
