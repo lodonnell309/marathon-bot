@@ -26,7 +26,7 @@ steps:
   # 3. Authenticate and Push the container image to Artifact Registry in a single step.
   # This more robust pattern ensures the docker client is correctly authenticated
   # in the same environment where the push occurs.
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/cloud-builders/gcloud'
     id: 'push-image'
     entrypoint: 'bash'
     args:
