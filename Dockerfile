@@ -14,9 +14,6 @@ COPY requirements.txt .
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install gunicorn and uvicorn explicitly
-RUN pip install gunicorn uvicorn
-
 # Copy the rest of the application code into the container
 COPY . .
 
