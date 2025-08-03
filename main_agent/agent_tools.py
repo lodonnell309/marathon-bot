@@ -75,10 +75,16 @@ def execute_query(query: str, strava_athlete_id: int) -> list:
         with get_db_session() as session:
             # We'll use a `text` construct for raw SQL, but we'll sanitize it
             # by adding the athlete_id condition.
-            if 'WHERE' in query.upper():
-                secure_query = query.replace('WHERE', f'WHERE athlete_id = {strava_athlete_id} AND ', 1)
+            if 'where' in query.lower():
+                secure_query = query.lower().replace('where', f'WHERE athlete_id = {strava_athlete_id} AND ', 1)
             else:
-                secure_query = f"{query.rstrip(';')} WHERE athlete_id = {strava_athlete_id};"
+                from_pos = query.lower().find('from')
+                if from_pos != -1:
+                    insert_pos = query.lower().find(' group by', from_pos)
+                    if insert_pos == -1: insert_pos = query.lower().find(' order by', from_pos)
+                    if insert_pos == -1: insert_pos = query.lower().find(' limit', from_pos)
+                    if insert_pos == -1: insert_pos = len(query.rstrip(';'))
+                    secure_query = f"{query[:insert_pos]} WHERE athlete_id = {strava_athlete_id}{query[insert_pos:]}"
 
             logging.info(f"Executing secure query: {secure_query}")
             
