@@ -35,7 +35,6 @@ def get_auth_url():
         client_id=client_id,
         redirect_uri=redirect_uri,
         scope=["read_all", "activity:read_all", "activity:write"],
-        response_type='code'
     )
 
 def exchange_code_for_tokens(code: str, telegram_chat_id: int):
