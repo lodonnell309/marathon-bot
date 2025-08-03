@@ -110,7 +110,7 @@ steps:
   #   secretEnv:
   #     - 'STRAVA_CLIENT_ID'
   #     - 'STRAVA_CLIENT_SECRET'
-  #     - 'STRAVA_VERIFY_TOKEN'
+  #     - 'STRAVA_VERIFY_TOKEN' #
 
 # Store the image in Artifact Registry
 images:
