@@ -1,0 +1,52 @@
+steps:
+  # 1. Run unit tests
+  # This step uses a standard Python image to install dependencies and run pytest.
+  # If any tests fail, the build will stop here, preventing a broken build from being deployed.
+  - name: 'python:3.11-slim'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install -r requirements.txt && pytest
+
+  # 2. Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
+      - '.'
+
+  # 3. Push the container image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
+
+  # 4. Deploy the container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
+      - '--region=${_DEPLOY_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--update-secrets=STRAVA_CLIENT_ID=STRAVA_CLIENT_ID:latest'
+      - '--update-secrets=STRAVA_CLIENT_SECRET=STRAVA_CLIENT_SECRET:latest'
+      - '--update-secrets=STRAVA_VERIFY_TOKEN=STRAVA_VERIFY_TOKEN:latest'
+      - '--update-secrets=TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest'
+      - '--update-secrets=DATABASE_URL=DATABASE_URL:latest'
+
+# Store the image in Artifact Registry
+images:
+  - '${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
+
+# Define substitution variables that will be used in the trigger
+substitutions:
+  _SERVICE_NAME: 'marathon-bot'
+  _DEPLOY_REGION: 'us-central1'
+  _GCR_HOSTNAME: 'us-central1-docker.pkg.dev'

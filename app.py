@@ -64,21 +64,15 @@ async def startup_event():
     )
     logging.info("ADK Runner initialized.")
 
+
 def create_initial_state(telegram_chat_id: int) -> dict:
     """Helper to create an initial state for a new user session."""
-    try:
-        initial_state = {
-            "name": "Runner",
-            "user_id": str(telegram_chat_id),
-            "strava_authenticated": False,
-            "strava_athlete_id": None
-        }
-        logging.info(f"Initial state created: {initial_state}")
-        return initial_state
-    except KeyError as e:
-        logging.error(f"Error creating initial state: {e}. Using default values.")
-        return { "name": "Unknown", "user_id": "Unknown", "strava_authenticated": False, "strava_athlete_id": None }
-
+    return {
+        "name": "Runner",
+        "user_id": str(telegram_chat_id),
+        "strava_authenticated": False,
+        "strava_athlete_id": None
+    }
 
 @app.get("/")
 async def index():

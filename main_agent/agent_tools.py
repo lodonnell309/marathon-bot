@@ -9,6 +9,12 @@ from pydantic import BaseModel, Field
 from database import get_db_session, engine
 from models import Activity, MarathonPlan, Meal, UserTarget
 
+def model_to_dict(obj):
+    """Converts a SQLAlchemy model instance to a dictionary, excluding internal state."""
+    if not obj:
+        return None
+    return {c.key: getattr(obj, c.key) for c in inspect(obj).mapper.column_attrs}
+
 #### helper to get date
 def get_current_date():
     """
@@ -212,11 +218,7 @@ def get_last_x_runs(strava_athlete_id: int, x: int) -> list:
                           .limit(x)\
                           .all()
             
-            results = [run.__dict__ for run in runs]
-            # Remove SQLAlchemy's internal state attribute
-            for res in results:
-                res.pop('_sa_instance_state', None)
-            return results
+            return [model_to_dict(run) for run in runs]
     except SQLAlchemyError as e:
         logging.error(f"Error in get_last_x_runs: {e}")
         return []
@@ -235,8 +237,10 @@ def get_recent_run_summary(strava_athlete_id: int, x: int) -> str:
             name = run.get('name', 'N/A')
             distance = round(run.get('distance_miles', 0), 2)
             moving_time = run.get('moving_time_minutes', 0)
-            date = run.get('start_date_local', 'N/A').strftime('%Y-%m-%d')
-            summary += f"{i+1}. '{name}' on {date}: {distance} miles in {moving_time} minutes.\n"
+            date_obj = run.get('start_date_local')
+            date_str = date_obj.strftime('%Y-%m-%d') if date_obj else 'N/A'
+            
+            summary += f"{i+1}. '{name}' on {date_str}: {distance} miles in {moving_time} minutes.\n"
         return summary
 
     except Exception as e:

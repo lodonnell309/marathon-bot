@@ -37,10 +37,6 @@ def log_parsed_db_url(url: str):
     except Exception as e:
         logging.error(f"Failed to parse DATABASE_URL: {e}")
 
-# IMPORTANT: This will print the raw DATABASE_URL string.
-# Make sure your terminal output is not public.
-print(f"DEBUG: Attempting to use DATABASE_URL: {DATABASE_URL}")
-
 
 # The engine is the source of database connectivity.
 try:
