@@ -17,5 +17,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code into the container
 COPY . .
 
-# Run app.py when the container launches using a production-ready server
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--bind", "0.0.0.0:8080"]
+# Use the PORT environment variable provided by Cloud Run.
+# The default of 8080 is used if the variable is not set (e.g., for local testing).
+# The `app:app` syntax assumes your FastAPI app instance is named `app`
+# in a file named `app.py`.
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--bind", "0.0.0.0:${PORT:-8080}"]
