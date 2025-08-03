@@ -45,6 +45,10 @@ steps:
 images:
   - '${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
 
+# Specify the logging mode to resolve the service account logging issue.
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 # Define substitution variables that will be used in the trigger
 substitutions:
   _SERVICE_NAME: 'marathon-bot'
