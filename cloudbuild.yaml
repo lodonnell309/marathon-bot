@@ -29,7 +29,7 @@ steps:
       - 'run'
       - 'deploy'
       - '${_SERVICE_NAME}'
-       - '--image=${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
+      - '--image=${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
       - '--region=${_DEPLOY_REGION}'
       - '--platform=managed'
       - '--allow-unauthenticated'
