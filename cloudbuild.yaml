@@ -23,9 +23,6 @@ steps:
       - '${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
       - '.'
 
-      - '${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
-      - '.'
-
   # New Step: Explicitly authenticate Docker with Artifact Registry.
   # This ensures the Docker client used in the next step has the correct credentials,
   # resolving potential authentication issues that can cause misleading errors.
