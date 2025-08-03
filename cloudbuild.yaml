@@ -8,6 +8,12 @@ steps:
       - '-c'
       - 'export PYTHONPATH=. && export TESTING=true && pip install -r requirements.txt && pytest'
 
+  # 1.5 Debug environment variables
+  - name: 'alpine'
+    id: 'debug-env'
+    entrypoint: 'sh'
+    args: ['-c', 'printenv | sort']
+
   # 2. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-image'
