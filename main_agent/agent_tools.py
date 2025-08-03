@@ -84,7 +84,7 @@ def execute_query(query: str, strava_athlete_id: int) -> list:
                     if insert_pos == -1: insert_pos = query.lower().find(' order by', from_pos)
                     if insert_pos == -1: insert_pos = query.lower().find(' limit', from_pos)
                     if insert_pos == -1: insert_pos = len(query.rstrip(';'))
-                    secure_query = f"{query[:insert_pos]} WHERE athlete_id = {strava_athlete_id}{query[insert_pos:]}"
+                    secure_query = f"{query[:insert_pos]} WHERE athlete_id = {strava_athlete_id} {query[insert_pos:]}"
 
             logging.info(f"Executing secure query: {secure_query}")
             

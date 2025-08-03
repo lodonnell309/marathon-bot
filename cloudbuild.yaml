@@ -13,14 +13,14 @@ steps:
     args:
       - 'build'
       - '-t'
-      - '${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
+      - '${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
       - '.'
 
   # 3. Push the container image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - '${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
+      - '${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
 
   # 4. Deploy the container image to Cloud Run test
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -29,7 +29,7 @@ steps:
       - 'run'
       - 'deploy'
       - '${_SERVICE_NAME}'
-      - '--image=${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
+       - '--image=${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
       - '--region=${_DEPLOY_REGION}'
       - '--platform=managed'
       - '--allow-unauthenticated'
@@ -42,7 +42,7 @@ steps:
 
 # Store the image in Artifact Registry
 images:
-  - '${_GCR_HOSTNAME}/${PROJECT_ID}/${REPO_NAME}:${COMMIT_SHA}'
+  - '${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
 
 # Specify the logging mode to resolve the service account logging issue.
 options:
@@ -51,5 +51,6 @@ options:
 # Define substitution variables that will be used in the trigger
 substitutions:
   _SERVICE_NAME: 'marathon-bot'
+  _REPO_NAME: 'marathon-bot'
   _DEPLOY_REGION: 'us-central1'
   _GCR_HOSTNAME: 'us-central1-docker.pkg.dev'
