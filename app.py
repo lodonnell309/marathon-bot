@@ -55,6 +55,9 @@ runner = None
 
 @app.on_event("startup")
 async def startup_event():
+    if os.getenv("TESTING") == "true":
+        logging.info("TESTING mode: Skipping ADK Runner initialization.")
+        return
     global runner
     logging.info("Initializing ADK Runner...")
     runner = Runner(
