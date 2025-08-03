@@ -5,7 +5,7 @@ gunicorn==23.0.0
 google-generativeai==0.8.5
 stravalib==2.4
 python-dotenv==1.1.0
-httpx==23.0.0
+httpx
 requests==2.32.4
 SQLAlchemy==2.0.42
 psycopg2-binary==2.9.10
