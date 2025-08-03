@@ -16,7 +16,7 @@ steps:
       - '${_GCR_HOSTNAME}/${PROJECT_ID}/${_REPO_NAME}:${COMMIT_SHA}'
       - '.'
 
-  # 3. Push the container image to Artifact Registry
+  # 3. Push the container image to Artifact Registry.
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
