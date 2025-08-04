@@ -35,10 +35,10 @@ on:
       - 'main'
 
 env:
-  PROJECT_ID: 'marathon-training-agent' # TODO: update to your Google Cloud project ID
-  REGION: 'us-central1' # Your project's region
-  SERVICE: 'marathon-bot' # Your service name
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/723317720421/locations/global/workloadIdentityPools/github/providers/my-repo' # TODO: update to your workload identity provider
+  PROJECT_ID: 'marathon-training-agent'
+  REGION: 'us-central1'
+  SERVICE: 'marathon-bot'
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/723317720421/locations/global/workloadIdentityPools/github/providers/my-repo'
 
 jobs:
   deploy:
@@ -67,9 +67,11 @@ jobs:
           DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
           
           # Build the Docker image with the tag.
+          echo "Building image with tag: ${DOCKER_TAG}"
           docker build --tag "${DOCKER_TAG}" .
 
           # Authenticate to Artifact Registry and push the image.
+          echo "Authenticating and pushing image..."
           gcloud auth configure-docker "${{ env.REGION }}-docker.pkg.dev" --quiet
           docker push "${DOCKER_TAG}"
 
