@@ -67,11 +67,9 @@ jobs:
           DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
           
           # Build the Docker image with the tag.
-          echo "Building image with tag: ${DOCKER_TAG}"
           docker build --tag "${DOCKER_TAG}" .
 
           # Authenticate to Artifact Registry and push the image.
-          echo "Authenticating and pushing image..."
           gcloud auth configure-docker "${{ env.REGION }}-docker.pkg.dev" --quiet
           docker push "${DOCKER_TAG}"
 
