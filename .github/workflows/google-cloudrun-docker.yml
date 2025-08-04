@@ -35,10 +35,10 @@ on:
       - 'main'
 
 env:
-  PROJECT_ID: 'marathon-training-agent' # TODO: update to your Google Cloud project ID
+  PROJECT_ID: 'YOUR_PROJECT_ID' # TODO: update to your Google Cloud project ID
   REGION: 'us-central1' # Your project's region
   SERVICE: 'marathon-bot' # Your service name
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/723317720421/locations/global/workloadIdentityPools/github/providers/my-repo' # TODO: update to your workload identity provider
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID' # TODO: update to your workload identity provider
 
 jobs:
   deploy:
@@ -58,17 +58,18 @@ jobs:
         uses: 'google-github-actions/auth@v2'
         with:
           workload_identity_provider: '${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
-          service_account: 'marathon-bot-deployer@marathon-training-agent.iam.gserviceaccount.com'
+          service_account: 'marathon-bot-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
 
       # --- START: Build, Push, and Deploy ---
-      - name: 'Build Container Image'
+      - name: 'Build and Push Container'
         run: |
+          # The DOCKER_TAG variable is used to tag the Docker image.
           DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
+          
+          # Build the Docker image with the tag.
           docker build --tag "${DOCKER_TAG}" .
-      
-      - name: 'Push Container Image'
-        run: |
-          DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
+
+          # Authenticate to Artifact Registry and push the image.
           gcloud auth configure-docker "${{ env.REGION }}-docker.pkg.dev" --quiet
           docker push "${DOCKER_TAG}"
 
