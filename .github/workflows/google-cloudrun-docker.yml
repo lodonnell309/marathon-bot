@@ -63,8 +63,8 @@ jobs:
       - name: 'Build and Push Container'
         run: |
           # The DOCKER_TAG variable is used to tag the Docker image.
-          DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
-          
+          DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}/${{ env.SERVICE }}:${{ github.sha }}"
+        
           # Build the Docker image with the tag.
           docker build --tag "${DOCKER_TAG}" .
 
