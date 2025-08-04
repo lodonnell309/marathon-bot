@@ -86,6 +86,7 @@ jobs:
             TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},
             DATABASE_URL=${{ secrets.DATABASE_URL }}
           allow_unauthenticated: true
+          max_instances: 3 
 
       # --- END: Build, Push, and Deploy ---
 
