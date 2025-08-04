@@ -13,19 +13,21 @@
 #    You can learn more about enabling APIs at
 #    https://support.google.com/googleapi/answer/6158841.
 #
-# 2. Create and configure a Workload Identity Provider for GitHub:
-#    https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation.
+# 2. Add your service account key to GitHub secrets:
+#    - In the Google Cloud Console, navigate to IAM & Admin > Service Accounts.
+#    - Select your 'marathon-bot-deployer' service account.
+#    - Go to the 'Keys' tab and click 'ADD KEY' -> 'Create new key'.
+#    - Choose JSON and create. A file will be downloaded.
+#    - Copy the contents of this JSON file.
+#    - In your GitHub repository, go to Settings > Secrets and variables > Actions.
+#    - Create a new secret named `GCP_SA_KEY` and paste the JSON content.
 #
-#    Depending on how you authenticate, you will need to grant an IAM principal
-#    permissions on Google Cloud:
+# 3. Ensure the service account has the following roles:
+#    - Artifact Registry Writer (roles/artifactregistry.writer)
+#    - Cloud Run Admin (roles/run.admin)
+#    - Secret Manager Secret Accessor (roles/secretmanager.secretAccessor)
 #
-#    - Artifact Registry Administrator (roles/artifactregistry.admin)
-#    - Cloud Run Developer (roles/run.developer)
-#
-#    You can learn more about setting IAM permissions at
-#    https://cloud.google.com/iam/docs/manage-access-other-resources
-#
-# 3. Change the values in the "env" block to match your values.
+# 4. Change the values in the "env" block to match your values.
 
 name: 'Build and Deploy to Cloud Run'
 
@@ -38,7 +40,6 @@ env:
   PROJECT_ID: 'marathon-training-agent'
   REGION: 'us-central1'
   SERVICE: 'marathon-bot'
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/723317720421/locations/global/workloadIdentityPools/github/providers/my-repo'
 
 jobs:
   deploy:
