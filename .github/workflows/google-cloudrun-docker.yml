@@ -35,10 +35,10 @@ on:
       - 'main'
 
 env:
-  PROJECT_ID: 'YOUR_PROJECT_ID' # TODO: update to your Google Cloud project ID
+  PROJECT_ID: 'marathon-training-agent' # TODO: update to your Google Cloud project ID
   REGION: 'us-central1' # Your project's region
   SERVICE: 'marathon-bot' # Your service name
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID' # TODO: update to your workload identity provider
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/723317720421/locations/global/workloadIdentityPools/github/providers/my-repo' # TODO: update to your workload identity provider
 
 jobs:
   deploy:
