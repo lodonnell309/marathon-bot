@@ -85,6 +85,7 @@ jobs:
             STRAVA_VERIFY_TOKEN=${{ secrets.STRAVA_VERIFY_TOKEN }},
             TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},
             DATABASE_URL=${{ secrets.DATABASE_URL }}
+          allow_unauthenticated: true
 
       # --- END: Build, Push, and Deploy ---
 
