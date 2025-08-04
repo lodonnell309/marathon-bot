@@ -46,19 +46,17 @@ jobs:
 
     permissions:
       contents: 'read'
-      id-token: 'write'
 
     steps:
       - name: 'Checkout'
         uses: 'actions/checkout@v4'
 
-      # Configure Workload Identity Federation and generate an access token.
+      # Authenticate to Google Cloud using a service account key from GitHub Secrets
       - id: 'auth'
         name: 'Authenticate to Google Cloud'
         uses: 'google-github-actions/auth@v2'
         with:
-          workload_identity_provider: '${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
-          service_account: 'marathon-bot-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
 
       # --- START: Build, Push, and Deploy ---
       - name: 'Build and Push Container'
