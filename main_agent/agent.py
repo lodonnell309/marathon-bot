@@ -1,8 +1,4 @@
 from google.adk.agents import Agent
-import sqlite3
-import time
-# from stravalib import Client
-# from flask import current_app comment
 import logging
 from typing import List, Optional
 from pydantic import BaseModel, Field 
@@ -31,7 +27,7 @@ strava_agent = Agent(
             "It can provide summaries of recent runs and answer questions about workout history."
         ),
         tools=[get_athlete_id_by_telegram_chat_id,list_tables_in_db,
-                get_strava_db_schema,execute_query,get_current_date, get_recent_run_summary],
+                get_strava_db_schema,execute_query,get_current_date, get_recent_run_summary,transfer_to_agent],
         instruction="""
             You are a Strava Agent speaking with {name} whose telegram chat ID is {user_id}. 
             Your purpose is to answer questions about the user's running data.
@@ -40,14 +36,15 @@ strava_agent = Agent(
             
             **IMPORTANT** When answering questions about run data, use the `get_recent_run_summary` tool.
             For any query that requires detailed data analysis beyond simple summaries, use a combination of `list_tables_in_db`, `get_strava_db_schema`, and `execute_query`.
-
+            **CRITICAL SECURITY RULE**: When using `execute_query`, your SQL query string MUST include a `WHERE` clause filtering by the user's athlete ID, like this: `WHERE athlete_id = :strava_athlete_id`. 
+            The `:strava_athlete_id` is a placeholder that will be filled in automatically. Do not put the actual ID number in the query string.
 
             You can answer questions such as:
             - "Show me my 5 most recent runs."
             - "What was my average distance in June?"
             - "Did my pace improve over the last month?"
 
-            **CRITICAL** If you cannot answer the question or the user asks for something outside your scope (like creating a marathon plan), you MUST transfer to the main agent.
+            **CRITICAL** If you cannot answer the question or the user asks for something outside your scope (like creating a marathon plan), you MUST transfer control to the main agent by calling `transfer_to_agent(agent_name='main_agent')`.
 
             Use SQL queries thoughtfully and conservatively to avoid unnecessary complexity or performance issues. Format your answers clearly and concisely based on the query results.
             **CRITICAL:** When providing output, do not use any markdown formatting, including bolding, italics, or lists. 
@@ -94,7 +91,7 @@ motivation_agent = Agent(
         
         Stay focused, keep the user accountable, and remind them: stay hard.
 
-        **CRITICAL** If you cannot answer the question or the user asks for something outside your scope (like data analysis), you MUST transfer to the main agent.
+        **CRITICAL** If you cannot answer the question or the user asks for something outside your scope (like creating a marathon plan), you MUST transfer control to the main agent by calling `transfer_to_agent(agent_name='main_agent')`.
 
         **CRITICAL:** When providing output, do not use any markdown formatting, including bolding, italics, or lists. All responses must be in plain text. Format your answers clearly and concisely based on the query results.
         """,
@@ -124,7 +121,7 @@ nutritionist_agent = Agent(
             5. `get_strava_db_schema`: Get the schema of a table in the Strava database.
             6. `execute_query`: Execute a SQL query on the Strava database.
 
-            **CRITICAL** If you cannot answer the question or the user asks for something outside your scope (like creating a marathon plan), you MUST transfer to the main agent.
+            **CRITICAL** If you cannot answer the question or the user asks for something outside your scope (like creating a marathon plan), you MUST transfer control to the main agent by calling `transfer_to_agent(agent_name='main_agent')`.
 
 
             **CRITICAL:** When providing output, do not use any markdown formatting, including bolding, italics, or lists. All responses must be in plain text. Format your answers clearly and concisely based on the query results.

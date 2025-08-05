@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from database import get_db_session, engine
 from models import Activity, MarathonPlan, Meal, UserTarget
+from google.adk.tools import ToolContext
 
 def model_to_dict(obj):
     """Converts a SQLAlchemy model instance to a dictionary, excluding internal state."""
@@ -53,7 +54,7 @@ def get_strava_db_schema(table_name: str) -> dict:
         logging.error(f"An error occurred getting schema for table '{table_name}': {e}")
         return {}
 
-def execute_query(query: str, strava_athlete_id: int) -> list:
+def execute_query(query: str, strava_athlete_id: int) -> list | str:
     """
     Execute a query on the database and return the results.
     This function enforces that all queries must be filtered by athlete_id to ensure data privacy.
@@ -61,40 +62,30 @@ def execute_query(query: str, strava_athlete_id: int) -> list:
     inputs:
             query: str - The SQL query to execute, e.g., "SELECT * FROM activities LIMIT 5;"
             strava_athlete_id: int - The ID of the authenticated Strava athlete.
-    outputs: list of dictionaries containing the query results
+    outputs: A list of dictionaries containing the query results, or an error string.
+
     """
     logging.info(f"Executing query: {query} for athlete_id: {strava_athlete_id}")
     
     # Check if the query is a SELECT statement for security
-    if not query.strip().upper().startswith("SELECT"):
-        logging.error("Only SELECT queries are allowed for security reasons.")
-        return []
+    if not query.strip().upper().startswith("SELECT") or "athlete_id" not in query.lower():
+        error_msg = "Security Error: Query must be a SELECT statement and must filter on 'athlete_id'."
+        logging.error(error_msg)
+        return error_msg
 
     # Use SQLAlchemy's text() construct for raw SQL execution
     try:
         with get_db_session() as session:
-            # We'll use a `text` construct for raw SQL, but we'll sanitize it
-            # by adding the athlete_id condition.
-            if 'where' in query.lower():
-                secure_query = query.lower().replace('where', f'WHERE athlete_id = {strava_athlete_id} AND ', 1)
-            else:
-                from_pos = query.lower().find('from')
-                if from_pos != -1:
-                    insert_pos = query.lower().find(' group by', from_pos)
-                    if insert_pos == -1: insert_pos = query.lower().find(' order by', from_pos)
-                    if insert_pos == -1: insert_pos = query.lower().find(' limit', from_pos)
-                    if insert_pos == -1: insert_pos = len(query.rstrip(';')) # If no other clauses, insert at the end.
-                    secure_query = f"{query[:insert_pos]} WHERE athlete_id = {strava_athlete_id} {query[insert_pos:]}" # Added a space
-
-            logging.info(f"Executing secure query: {secure_query}")
-            
-            result = session.execute(text(secure_query))
+            # Use SQLAlchemy's text() construct with parameter binding to prevent SQL injection.
+            # The LLM is instructed to include `athlete_id = :strava_athlete_id` in its query.
+            stmt = text(query)
+            result = session.execute(stmt, {"strava_athlete_id": strava_athlete_id})
             columns = result.keys()
             results = [dict(zip(columns, row)) for row in result]
             return results
     except SQLAlchemyError as e:
         logging.error(f"An SQLAlchemy error occurred: {e}")
-        return []
+        return f"Database query failed: {e}"
 
 class PlanDetailsItem(BaseModel):
     date: str = Field(..., description="The date of the workout in 'YYYY-MM-DD' format.")
@@ -253,9 +244,13 @@ def get_recent_run_summary(strava_athlete_id: int, x: int) -> str:
         return f"An error occurred while summarizing your runs: {e}"
 
 
-def transfer_to_agent(agent_name: str) -> str:
+def transfer_to_agent(agent_name: str, tool_context: ToolContext) -> str:
     """
     Transfers the conversation to another agent.
     This is an ADK-specific tool.
+    Signals to the ADK framework to transfer the conversation to another agent.
+    This tool modifies the tool_context to instruct the runner to perform the transfer.
     """
-    return f"Transferring to {agent_name}."
+    tool_context.actions.transfer_to_agent = agent_name
+    # This return value is for logging/debugging; the transfer is handled by the framework.
+    return f"Signaling transfer to {agent_name}."
