@@ -88,7 +88,8 @@ async def strava_webhook_verification(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge")
 ):
-    logging.info("Webhook verification GET request received.")
+    logging.info(f"Strava verification attempt received. hub.mode={hub_mode}, hub.verify_token={hub_verify_token}, hub.challenge={hub_challenge}")
+    logging.info(f"Expected token: {STRAVA_VERIFY_TOKEN}")
     
     if hub_mode == "subscribe" and hub_verify_token == STRAVA_VERIFY_TOKEN:
         logging.info("Webhook verified successfully.")
