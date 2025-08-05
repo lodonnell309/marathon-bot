@@ -2,7 +2,7 @@ from google.adk.agents import Agent
 import sqlite3
 import time
 # from stravalib import Client
-# from flask import current_app
+# from flask import current_app comment
 import logging
 from typing import List, Optional
 from pydantic import BaseModel, Field 
