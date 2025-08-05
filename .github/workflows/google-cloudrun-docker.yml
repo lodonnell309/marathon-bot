@@ -85,9 +85,18 @@ jobs:
             STRAVA_VERIFY_TOKEN=${{ secrets.STRAVA_VERIFY_TOKEN }},
             TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},
             DATABASE_URL=${{ secrets.DATABASE_URL }}
-          allow_unauthenticated: true
+          # REMOVED: allow_unauthenticated: true
           max_instances: 3 
           memory: 1Gi
+
+      # This new step will explicitly set the IAM policy for public access.
+      - name: 'Set Public Access'
+        run: |
+          gcloud run services add-iam-policy-binding ${{ env.SERVICE }} \
+            --member="allUsers" \
+            --role="roles/run.invoker" \
+            --region="${{ env.REGION }}" \
+            --format="none"
 
       # Add a delay here to give the service time to start up
       - name: 'Wait for Cloud Run service to be ready'
