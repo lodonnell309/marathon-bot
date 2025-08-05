@@ -88,25 +88,24 @@ jobs:
           allow_unauthenticated: true
           max_instances: 3 
 
-      # --- END: Build, Push, and Deploy ---
+      # Add a delay here to give the service time to start up
+      - name: 'Wait for Cloud Run service to be ready'
+        run: sleep 30
 
       # --- START: Post-Deployment Steps ---
       - name: 'Get Cloud Run Service URL'
         id: 'get-url'
         run: |
-          # Use gcloud to get the deployed service URL
           SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')
           echo "CLOUD_RUN_SERVICE_URL=$SERVICE_URL" >> "$GITHUB_ENV"
           echo "Service URL is: $SERVICE_URL"
 
       - name: 'Update Strava Webhook'
         env:
-          # Assuming you have set up these secrets in your GitHub repository
           STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
           STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
           STRAVA_VERIFY_TOKEN: ${{ secrets.STRAVA_VERIFY_TOKEN }}
         run: |
-          # Construct the callback URL
           CALLBACK_URL="${{ env.CLOUD_RUN_SERVICE_URL }}/webhook"
           
           # Delete any existing subscription first to avoid "already exists" error
