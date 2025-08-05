@@ -108,25 +108,20 @@ jobs:
           STRAVA_VERIFY_TOKEN: ${{ secrets.STRAVA_VERIFY_TOKEN }}
         run: |
           CALLBACK_URL="${{ env.CLOUD_RUN_SERVICE_URL }}/webhook"
-          
-          # Delete any existing subscription first to avoid "already exists" error
-          echo "Attempting to delete any existing Strava webhook subscription..."
           SUBSCRIPTIONS_URL="https://www.strava.com/api/v3/push_subscriptions"
           
-          # First, get the subscription ID. The `gcloud` auth token is used here
-          # for a robust curl request.
-          SUBSCRIPTION_INFO=$(curl -s -G "${SUBSCRIPTIONS_URL}" \
+          # Use curl and jq to get the subscription ID
+          SUBSCRIPTION_ID=$(curl -s -G "${SUBSCRIPTIONS_URL}" \
             -d client_id="${{ env.STRAVA_CLIENT_ID }}" \
-            -d client_secret="${{ env.STRAVA_CLIENT_SECRET }}")
-
-          SUBSCRIPTION_ID=$(echo "$SUBSCRIPTION_INFO" | grep -o '"id":[0-9]*' | grep -o '[0-9]*')
+            -d client_secret="${{ env.STRAVA_CLIENT_SECRET }}" | jq '.[0].id')
           
-          if [ -n "$SUBSCRIPTION_ID" ]; then
+          if [ "${SUBSCRIPTION_ID}" != "null" ]; then
             echo "Found existing subscription with ID: ${SUBSCRIPTION_ID}. Deleting..."
             curl -X DELETE "${SUBSCRIPTIONS_URL}/${SUBSCRIPTION_ID}?client_id=${{ env.STRAVA_CLIENT_ID }}&client_secret=${{ env.STRAVA_CLIENT_SECRET }}"
+          else
+            echo "No existing subscriptions found. Proceeding with creation."
           fi
 
-          # Now create the new subscription
           echo "Creating new Strava webhook subscription with callback URL: ${CALLBACK_URL}"
           curl -X POST "${SUBSCRIPTIONS_URL}" \
                -F client_id="${{ env.STRAVA_CLIENT_ID }}" \
