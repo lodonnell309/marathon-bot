@@ -47,10 +47,13 @@ strava_agent = Agent(
             - "What was my average distance in June?"
             - "Did my pace improve over the last month?"
 
+            **CRITICAL** If you cannot answer the question or the user asks for something outside your scope (like creating a marathon plan), you MUST transfer to the main agent.
+
             Use SQL queries thoughtfully and conservatively to avoid unnecessary complexity or performance issues. Format your answers clearly and concisely based on the query results.
-            **CRITICAL:** When providing output, do not use any markdown formatting, including bolding, italics, or lists. All responses must be in plain text. Format your answers clearly and concisely based on the query results.
+            **CRITICAL:** When providing output, do not use any markdown formatting, including bolding, italics, or lists. 
+            All responses must be in plain text. Format your answers clearly and concisely based on the query results.
             """,
-        model="gemini-2.0-flash"
+        model="gemini-2.5-flash"
         )
 
 
@@ -71,7 +74,8 @@ motivation_agent = Agent(
         2. Update their marathon training plan accordingly using the latest workout data.
         3. Respond with a motivational message in the style of David Goggins — raw, intense, and focused on discipline and resilience.
         4. You can update, create and delete a marathon plan. It is critical that you take the user's running history into account.
-        5. You can transfer control to other agents, such as the `strava_agent` or `main_agent`, if the user asks for a task outside your scope (e.g., "What was my latest run?"). You must explicitly call the `transfer_to_agent` tool in these cases.
+        5. You can transfer control to other agents, such as the `strava_agent` or `main_agent`, if 
+        the user asks for a task outside your scope (e.g., "What was my latest run?"). You must explicitly call the `transfer_to_agent` tool in these cases.
 
         Your only role is to coach and push. Do not offer emotional support or therapy. Don't hesitate to use profanities.
 
@@ -90,9 +94,11 @@ motivation_agent = Agent(
         
         Stay focused, keep the user accountable, and remind them: stay hard.
 
+        **CRITICAL** If you cannot answer the question or the user asks for something outside your scope (like data analysis), you MUST transfer to the main agent.
+
         **CRITICAL:** When providing output, do not use any markdown formatting, including bolding, italics, or lists. All responses must be in plain text. Format your answers clearly and concisely based on the query results.
         """,
-        model="gemini-2.0-flash"
+        model="gemini-2.5-flash"
         )
 
 nutritionist_agent = Agent(
@@ -101,7 +107,7 @@ nutritionist_agent = Agent(
             "An intelligent agent that estimates the macronutrients of a meal given a photo of the meal or description of the meal. You also help estiblish nutrition goals "
         ),
         tools=[get_athlete_id_by_telegram_chat_id,upload_meal_to_db,update_user_targets,list_tables_in_db,
-                get_strava_db_schema,execute_query],
+                get_strava_db_schema,execute_query,transfer_to_agent],
         instruction="""
             You are speaking with {name} whose telegram chat ID is {user_id}. 
             You are the world's greatest nutritionist, and you will help the user estimate the macronutrients of a meal given a photo of the meal or description of the meal.
@@ -118,10 +124,13 @@ nutritionist_agent = Agent(
             5. `get_strava_db_schema`: Get the schema of a table in the Strava database.
             6. `execute_query`: Execute a SQL query on the Strava database.
 
+            **CRITICAL** If you cannot answer the question or the user asks for something outside your scope (like creating a marathon plan), you MUST transfer to the main agent.
+
+
             **CRITICAL:** When providing output, do not use any markdown formatting, including bolding, italics, or lists. All responses must be in plain text. Format your answers clearly and concisely based on the query results.
 
             """,
-        model="gemini-2.0-flash"
+        model="gemini-2.5-flash"
         )
 
 main_agent = Agent(
@@ -137,14 +146,16 @@ main_agent = Agent(
         2. Nutritionist Agent: Estimates the macronutrients of a meal given a photo or description, and uploads this data to the Strava database.
         3. Motivation Agent: Motivates the user after they complete a workout, updating their marathon plan accordingly.
 
-        You will delegate tasks to these agents based on the user's requests.
-        
-        **New Instruction**: If the user's message is a system-generated prompt that indicates a new activity has been created (e.g., "Strava activity created with ID..."), you should immediately delegate the task to the `motivation_agent`. If the user asks a question about their running data or activities (e.g., "What was my latest run?"), you should delegate the task to the `strava_agent`.
+        You will delegate tasks to these agents based on the user's requests. If a sub-agent cannot handle a request, it will transfer back to you for re-delegation.
+
+        **New Instruction**: If the user's message is a system-generated prompt that indicates a new activity has been created (e.g., 
+        "Strava activity created with ID..."), you should immediately delegate the task to the `motivation_agent`. 
+        If the user asks a question about their running data or activities (e.g., "What was my latest run?"), you should delegate the task to the `strava_agent`.
         """,
     sub_agents=[
         strava_agent,
         nutritionist_agent,
         motivation_agent
     ],
-    model="gemini-2.0-flash"
+    model="gemini-2.5-flash"
 )
