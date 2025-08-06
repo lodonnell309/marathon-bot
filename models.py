@@ -1,7 +1,7 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 
 # A base class for declarative table definitions.
 # All ORM models will inherit from this.
@@ -70,8 +70,9 @@ class Meal(Base):
     __tablename__ = 'meals'
 
     # Using BigInteger for meal_id to be safe
-    meal_id: Mapped[int] = mapped_column(sa.BigInteger, primary_key=True)
+    meal_id: Mapped[int] = mapped_column(sa.BigInteger, primary_key=True, autoincrement=True)
     meal_name: Mapped[str] = mapped_column(sa.String, nullable=False)
+    date: Mapped[date] = mapped_column(sa.Date, nullable=False)
     protein_grams: Mapped[Optional[float]] = mapped_column(sa.Float)
     carbs_grams: Mapped[Optional[float]] = mapped_column(sa.Float)
     fat_grams: Mapped[Optional[float]] = mapped_column(sa.Float)

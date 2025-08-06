@@ -65,7 +65,7 @@ def exchange_code_for_tokens(code: str, telegram_chat_id: int):
     logging.info(f"Successfully stored tokens for athlete {athlete_id}.")
 
     # Load recent activities into the database
-    activities = get_activities(limit=25, strava_client=client)
+    activities = get_activities(limit=100, strava_client=client)
     store_activities(athlete_id, activities)
     
     return athlete

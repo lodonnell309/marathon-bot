@@ -161,7 +161,7 @@ def update_marathon_plan(athlete_id: int, date: str, new_run_type: str, new_dist
         logging.error(f"Failed to update marathon plan for athlete {athlete_id}: {e}")
         return f"Failed to update marathon plan: {e}"
 
-def upload_meal_to_db(athlete_id:int, meal_name: str,
+def upload_meal_to_db(athlete_id:int, meal_name: str, date:str,
                       protein_grams: float, carbs_grams: float,
                       fat_grams: float, calories: float) -> str:
     """Creates an entry in the meals table in the database."""
@@ -170,6 +170,7 @@ def upload_meal_to_db(athlete_id:int, meal_name: str,
             new_meal = Meal(
                 athlete_id=athlete_id,
                 meal_name=meal_name,
+                date=date,
                 protein_grams=protein_grams,
                 carbs_grams=carbs_grams,
                 fat_grams=fat_grams,
@@ -177,7 +178,7 @@ def upload_meal_to_db(athlete_id:int, meal_name: str,
             )
             session.add(new_meal)
             session.commit()
-            return f"Meal '{meal_name}' successfully added for athlete_id {athlete_id}."
+            return f"Meal '{meal_name}' on {date} successfully added for athlete_id {athlete_id}."
     except SQLAlchemyError as e:
         logging.error(f"Failed to add meal: {e}")
         return f"Failed to add meal: {e}"
