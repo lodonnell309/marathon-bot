@@ -1,0 +1,32 @@
+steps:
+# Build the container image, ignoring the cache
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '--no-cache', '-t', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$BUILD_ID', '.']
+
+# Push the container image to Google Container Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$BUILD_ID']
+
+# Deploy container image to Cloud Run
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'run'
+  - 'deploy'
+  - '${_SERVICE_NAME}'
+  - '--image=gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$BUILD_ID'
+  - '--region=${_REGION}'
+  - '--platform=managed'
+  - '--allow-unauthenticated'
+  # Mount secrets from Secret Manager as environment variables.
+  - '--set-secrets=DATABASE_URL=DATABASE_URL:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,STRAVA_VERIFY_TOKEN=STRAVA_VERIFY_TOKEN:latest,STRAVA_CLIENT_ID=STRAVA_CLIENT_ID:latest,STRAVA_CLIENT_SECRET=STRAVA_CLIENT_SECRET:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,STRAVA_REDIRECT_URI=STRAVA_REDIRECT_URI:latest,GOOGLE_GENAI_USE_VERTEXAI=GOOGLE_GENAI_USE_VERTEXAI:latest'
+
+images:
+- 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$BUILD_ID'
+
+substitutions:
+  _SERVICE_NAME: marathon-bot
+  _REGION: us-central1 # You can change this to your preferred region
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -10,9 +10,7 @@ from fastapi.responses import RedirectResponse
 
 # Load environment variables at the very beginning of the script
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
-load_dotenv(os.path.join(os.path.dirname(__file__), 'marathon-bot', '.env'))
-
+load_dotenv()
 
 # --- ADK Specific Imports ---
 from google.adk.runners import Runner
@@ -33,13 +31,6 @@ app = FastAPI()
 
 logging.basicConfig(level=logging.INFO)
 
-# Now that the environment variables are loaded, we can call init_db().
-# This ensures DATABASE_URL is available.
-logging.info("Calling init_db() to create tables...")
-init_db()
-logging.info("Database initialization call complete.")
-
-
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not TELEGRAM_BOT_TOKEN:
     logging.warning("TELEGRAM_BOT_TOKEN not found in environment variables. Telegram messages will not be sent.")
@@ -49,7 +40,7 @@ if not STRAVA_VERIFY_TOKEN:
     logging.error("STRAVA_VERIFY_TOKEN not found. Webhook verification will fail.")
 
 
-session_service = DatabaseSessionService(db_url=DATABASE_URL)
+session_service = None
 APP_NAME = "strava-telegram-bot"
 runner = None
 
@@ -58,7 +49,14 @@ async def startup_event():
     if os.getenv("TESTING") == "true":
         logging.info("TESTING mode: Skipping ADK Runner initialization.")
         return
-    global runner
+    logging.info("Calling init_db() to create tables...")
+    init_db()
+    logging.info("Database initialization call complete.")
+
+    global runner, session_service
+    
+    logging.info("Initializing ADK Session Service...")
+    session_service = DatabaseSessionService(db_url=DATABASE_URL)
     logging.info("Initializing ADK Runner...")
     runner = Runner(
         agent=main_agent,
@@ -67,6 +65,28 @@ async def startup_event():
     )
     logging.info("ADK Runner initialized.")
 
+async def get_or_create_session(user_id: str, telegram_chat_id: int):
+    """
+    Retrieves an existing session for a user or creates a new one if none exists.
+    This helper function centralizes session management logic.
+    """
+    session_list_obj = await session_service.list_sessions(
+        app_name=APP_NAME,
+        user_id=user_id,
+    )
+    # Check if the list of sessions is not empty
+    if session_list_obj and session_list_obj.sessions:
+        logging.info(f"Retrieved existing session for user_id '{user_id}'.")
+        return session_list_obj.sessions[0]
+    
+    logging.info(f"No existing session for user_id '{user_id}'. Creating a new one.")
+    initial_state = create_initial_state(telegram_chat_id)
+    new_session = await session_service.create_session(
+        app_name=APP_NAME,
+        user_id=user_id,
+        state=initial_state
+    )
+    return new_session
 
 def create_initial_state(telegram_chat_id: int) -> dict:
     """Helper to create an initial state for a new user session."""
@@ -123,21 +143,7 @@ async def strava_webhook_event(request: Request):
                 user_id = str(telegram_chat_id)
                 response_text = "Sorry, I couldn't process your request."
 
-                session_list_obj = await session_service.list_sessions(
-                    app_name=APP_NAME,
-                    user_id=user_id,
-                )
-                current_session = None
-                if session_list_obj and len(session_list_obj.sessions) > 0:
-                    current_session = session_list_obj.sessions[0]
-                else:
-                    initial_state = create_initial_state(telegram_chat_id)
-                    current_session = await session_service.create_session(
-                        app_name=APP_NAME,
-                        user_id=user_id,
-                        state=initial_state
-                    )
-
+                current_session = await get_or_create_session(user_id, telegram_chat_id)
                 current_session.state['strava_authenticated'] = True
                 current_session.state['strava_athlete_id'] = athlete_id
                 
@@ -239,6 +245,8 @@ async def telegram_webhook(request: Request):
     if runner is None:
         logging.error("ADK Runner not initialized. Application startup failed or is not complete.")
         raise HTTPException(status_code=503, detail="Service unavailable: ADK Runner not ready.")
+    
+    chat_id = None
 
     try:
         telegram_update = await request.json()
@@ -260,25 +268,8 @@ async def telegram_webhook(request: Request):
         response_text = "Sorry, I couldn't process your request."
 
         # --- SESSION MANAGEMENT: RETRIEVE OR CREATE ---
-        session_list_obj = await session_service.list_sessions(
-            app_name=APP_NAME,
-            user_id=user_id,
-        )
-        logging.info(f"Retrieved sessions for user_id '{user_id}': {session_list_obj.sessions}")
-        current_session = None
-        if session_list_obj and len(session_list_obj.sessions) > 0:
-            current_session = session_list_obj.sessions[0]
-            logging.info(f"Retrieved existing session for user_id '{user_id}': {current_session.id}")
-            logging.info(f"Session state before update: {current_session.state}")
-        else:
-            logging.info(f"No existing session found for user_id '{user_id}'. Creating a new session.")
-            initial_state = create_initial_state(chat_id)
-            current_session = await session_service.create_session(
-                app_name=APP_NAME,
-                user_id=user_id,
-                state=initial_state
-            )
-            logging.info(f"Created new session: {current_session.id}")
+        current_session = await get_or_create_session(user_id, chat_id)
+
         
         # --- UPDATE SESSION STATE WITH LATEST ATHLETE_ID ---
         strava_athlete_id = get_athlete_id_by_telegram_chat_id(chat_id)
