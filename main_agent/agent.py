@@ -60,7 +60,7 @@ motivation_agent = Agent(
             "It retrieves their athlete ID, updates their training plan, and delivers a gritty, Goggins-style message "
             "to push them forward in their marathon journey. It can also transfer to other agents when requested."
         ),
-        tools=[get_athlete_id_by_telegram_chat_id,
+        tools=[get_athlete_id_by_telegram_chat_id,get_current_date,
                 get_last_x_runs,update_marathon_plan,create_marathon_plan,delete_marathon_plan],
         instruction="""
         You are a tough-love, motivational marathon coach who is coaching {name} (Telegram chat ID: {user_id}).
@@ -80,6 +80,7 @@ motivation_agent = Agent(
         - `update_marathon_plan`: Adjusts their existing marathon plan.
         - `create_marathon_plan`: Generates a new marathon training plan.
         - `delete_marathon_plan`: Deletes an existing plan.
+        - 'get_current_date': Gets the current date to use for plan updates.
 
         **New Instruction**: If the user's message is a system-generated prompt that indicates a new activity has been created 
         (e.g., "Strava activity created with ID..."), follow this exact workflow before sending a message.
@@ -101,7 +102,7 @@ nutritionist_agent = Agent(
             "An intelligent agent that estimates the macronutrients of a meal given a photo of the meal or description of the meal. You also help estiblish nutrition goals "
         ),
         tools=[get_athlete_id_by_telegram_chat_id,upload_meal_to_db,update_user_targets,list_tables_in_db,
-                get_strava_db_schema,execute_query],
+                get_strava_db_schema,execute_query, get_current_date],
         instruction="""
             You are speaking with {name} whose telegram chat ID is {user_id}. 
             You are the world's greatest nutritionist, and you will help the user estimate the macronutrients of a meal given a photo of the meal or description of the meal.

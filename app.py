@@ -65,7 +65,7 @@ async def startup_event():
     )
     logging.info("ADK Runner initialized.")
 
-async def get_or_create_session(user_id: str, telegram_chat_id: int):
+async def get_or_create_session(user_id: str, telegram_chat_id: int, telegram_update: Optional[dict] = None):
     """
     Retrieves an existing session for a user or creates a new one if none exists.
     This helper function centralizes session management logic.
@@ -80,7 +80,7 @@ async def get_or_create_session(user_id: str, telegram_chat_id: int):
         return session_list_obj.sessions[0]
     
     logging.info(f"No existing session for user_id '{user_id}'. Creating a new one.")
-    initial_state = create_initial_state(telegram_chat_id)
+    initial_state = create_initial_state(telegram_chat_id, telegram_update)
     new_session = await session_service.create_session(
         app_name=APP_NAME,
         user_id=user_id,
@@ -88,14 +88,27 @@ async def get_or_create_session(user_id: str, telegram_chat_id: int):
     )
     return new_session
 
-def create_initial_state(telegram_chat_id: int) -> dict:
+def create_initial_state(telegram_chat_id: int, telegram_update: Optional[dict] = None) -> dict:
     """Helper to create an initial state for a new user session."""
-    return {
-        "name": "Runner",
-        "user_id": str(telegram_chat_id),
+    name = "Runner"  # Default name
+    user_id = str(telegram_chat_id)
+
+    if telegram_update:
+        try:
+            # Safely access the user's first name from the Telegram payload
+            name = telegram_update.get("message", {}).get("from", {}).get("first_name", "Runner")
+        except (AttributeError, KeyError):
+            logging.warning("Could not extract first_name from Telegram update. Using default 'Runner'.")
+            name = "Runner"
+
+    initial_state = {
+        "name": name,
+        "user_id": user_id,
         "strava_authenticated": False,
         "strava_athlete_id": None
     }
+    logging.info(f"Initial state created: {initial_state}")
+    return initial_state
 
 @app.get("/")
 async def index():
@@ -268,7 +281,7 @@ async def telegram_webhook(request: Request):
         response_text = "Sorry, I couldn't process your request."
 
         # --- SESSION MANAGEMENT: RETRIEVE OR CREATE ---
-        current_session = await get_or_create_session(user_id, chat_id)
+        current_session = await get_or_create_session(user_id, chat_id, telegram_update)
 
         
         # --- UPDATE SESSION STATE WITH LATEST ATHLETE_ID ---
