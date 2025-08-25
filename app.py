@@ -7,6 +7,7 @@ from typing import Optional
 
 from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.responses import RedirectResponse
+from models import Token
 
 # Load environment variables at the very beginning of the script
 from dotenv import load_dotenv
@@ -295,7 +296,7 @@ async def telegram_webhook(request: Request):
         else:
             current_session.state['strava_authenticated'] = False
             current_session.state['strava_athlete_id'] = None
-            logging.error(f"No Strava athlete ID found for chat_id {chat_id}. Session state will not be updated with athlete ID.")
+            logging.info(f"No Strava athlete ID found for chat_id {chat_id}. User needs to authenticate.")
         
         logging.info(f"Updated session state before running agent: {current_session.state}")
 
@@ -309,6 +310,16 @@ async def telegram_webhook(request: Request):
             )
             await send_telegram_message(chat_id, response_text)
             return {"status": "success", "message": "Sent authentication link"}
+        
+        if not strava_athlete_id:
+            auth_url = get_auth_url()
+            auth_url_with_state = f"{auth_url}&state={chat_id}"
+            response_text = (
+                "Welcome! To get started, you need to connect your Strava account.\n\n"
+                f"Please use this link to authenticate: {auth_url_with_state}"
+            )
+            await send_telegram_message(chat_id, response_text)
+            return {"status": "success", "message": "Authentication required"}
             
         # --- PASS MESSAGE TO ADK AGENT ---
         new_message_content = types.Content(role="user", parts=[types.Part(text=text)])
