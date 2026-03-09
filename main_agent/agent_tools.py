@@ -1,10 +1,13 @@
-import time
+"""
+Tools used by ADK agents: database queries, marathon plans, meals, and run summaries.
+"""
 import logging
+import time
 from typing import List, Optional
 
+from pydantic import BaseModel, Field
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
-from pydantic import BaseModel, Field
 
 from database import get_db_session, engine
 from models import Activity, MarathonPlan, Meal, UserTarget
@@ -16,7 +19,7 @@ def model_to_dict(obj):
         return None
     return {c.key: getattr(obj, c.key) for c in inspect(obj).mapper.column_attrs}
 
-#### helper to get date
+
 def get_current_date():
     """
     Return the current date in YYYY-MM-DD format.
@@ -65,7 +68,7 @@ def execute_query(query: str, strava_athlete_id: int) -> list | str:
     outputs: A list of dictionaries containing the query results, or an error string.
 
     """
-    logging.info(f"Executing query: {query} for athlete_id: {strava_athlete_id}")
+    logging.info("Executing query for authenticated user.")
     
     # Check if the query is a SELECT statement for security
     if not query.strip().upper().startswith("SELECT") or "athlete_id" not in query.lower():

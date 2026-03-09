@@ -1,34 +1,34 @@
+"""
+FastAPI application for marathon-bot: Strava + Telegram webhooks and ADK agent runner.
+"""
 import os
 import logging
-import asyncio
-import uuid
 import httpx
 from typing import Optional
 
-from fastapi import FastAPI, Request, HTTPException, Query
-from fastapi.responses import RedirectResponse
-from models import Token
-
-# Load environment variables at the very beginning of the script
 from dotenv import load_dotenv
 load_dotenv()
 
-# --- ADK Specific Imports ---
+from fastapi import FastAPI, Request, HTTPException, Query
+from fastapi.responses import RedirectResponse
+
 from google.adk.runners import Runner
 from google.adk.sessions import DatabaseSessionService
 from google.genai import types
 from main_agent.agent import main_agent
 
-# --- Local Imports ---
 from database import init_db, get_athlete_id_by_telegram_chat_id, get_telegram_chat_id_by_athlete_id, DATABASE_URL
 from strava_client import (
     get_auth_url, exchange_code_for_tokens, get_authenticated_client,
     store_activities, get_activity, delete_activity_from_db, update_activity_in_db
 )
-# Explicitly import all models so SQLAlchemy's Base.metadata.create_all() can find them.
 from models import Base, Token, Activity, MarathonPlan, Meal, UserTarget
 
-app = FastAPI()
+app = FastAPI(
+    title="Marathon Bot",
+    description="Telegram bot connecting Strava to an AI marathon coach (Google ADK).",
+    version="0.1.0",
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -108,7 +108,7 @@ def create_initial_state(telegram_chat_id: int, telegram_update: Optional[dict] 
         "strava_authenticated": False,
         "strava_athlete_id": None
     }
-    logging.info(f"Initial state created: {initial_state}")
+    logging.info("Initial state created for new session.")
     return initial_state
 
 @app.get("/")
@@ -122,23 +122,21 @@ async def strava_webhook_verification(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge")
 ):
-    logging.info(f"Strava verification attempt received. hub.mode={hub_mode}, hub.verify_token={hub_verify_token}, hub.challenge={hub_challenge}")
-    logging.info(f"Expected token: {STRAVA_VERIFY_TOKEN}")
-    
     if hub_mode == "subscribe" and hub_verify_token == STRAVA_VERIFY_TOKEN:
-        logging.info("Webhook verified successfully.")
+        logging.info("Strava webhook verification attempted – success.")
         return {"hub.challenge": hub_challenge}
     else:
-        logging.error("Webhook verification failed: Invalid mode or token.")
+        logging.warning("Strava webhook verification attempted – failed (invalid mode or token).")
         raise HTTPException(status_code=403, detail="Forbidden: Invalid verify token.")
 
 @app.post("/webhook")
 async def strava_webhook_event(request: Request):
     payload = await request.json()
-    logging.info(f"Webhook event received: {payload}")
-    
     aspect_type = payload.get("aspect_type")
     object_type = payload.get("object_type")
+    object_id = payload.get("object_id")
+    owner_id = payload.get("owner_id")
+    logging.info(f"Webhook event received: aspect_type={aspect_type}, object_type={object_type}, object_id={object_id}, owner_id={owner_id}")
     
     if object_type != "activity":
         logging.info(f"Ignoring webhook event for object type: {object_type}")
@@ -216,13 +214,13 @@ async def strava_webhook_event(request: Request):
 
 @app.get("/callback")
 async def callback(code: Optional[str] = Query(None), state: Optional[str] = Query(None)):
-    logging.info(f"Handling Strava callback. Code: {code}, State: {state}")
+    logging.info("Handling Strava callback.")
 
     telegram_chat_id = None
     if state:
         try:
             telegram_chat_id = int(state)
-            logging.info(f"Retrieved Telegram chat_id from state: {telegram_chat_id}")
+            logging.info("Retrieved Telegram chat_id from state.")
         except ValueError:
             logging.warning(f"Could not convert state '{state}' to an integer chat_id.")
 
@@ -245,13 +243,13 @@ async def callback(code: Optional[str] = Query(None), state: Optional[str] = Que
 
 @app.get("/profile/{athlete_id}")
 async def profile(athlete_id: int):
-    logging.info(f"Fetching profile for athlete ID: {athlete_id}")
+    logging.info("Fetching profile.")
     try:
         client = get_authenticated_client(athlete_id)
         athlete = client.get_athlete()
         return {"user": f"{athlete.firstname} {athlete.lastname}"}
     except Exception as e:
-        logging.error(f"Error fetching profile for athlete ID {athlete_id}: {e}")
+        logging.error(f"Error fetching profile: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching profile: {e}")
 
 @app.post("/telegram_webhook")
@@ -264,7 +262,8 @@ async def telegram_webhook(request: Request):
 
     try:
         telegram_update = await request.json()
-        logging.info(f"Received Telegram update: {telegram_update}")
+        update_id = telegram_update.get("update_id", "?")
+        logging.info(f"Received Telegram update: update_id={update_id}")
 
         message = telegram_update.get("message")
         if not message:
@@ -287,18 +286,18 @@ async def telegram_webhook(request: Request):
         
         # --- UPDATE SESSION STATE WITH LATEST ATHLETE_ID ---
         strava_athlete_id = get_athlete_id_by_telegram_chat_id(chat_id)
-        logging.info(f"Retrieved Strava athlete ID for chat_id {chat_id}: {strava_athlete_id}")
+        logging.info("Retrieved Strava athlete ID for user.")
         
         if strava_athlete_id:
             current_session.state['strava_authenticated'] = True
             current_session.state['strava_athlete_id'] = strava_athlete_id
-            logging.info(f"Strava athlete ID {strava_athlete_id} found for chat_id {chat_id}. Updating session state.")
+            logging.info("Session state updated: Strava authenticated.")
         else:
             current_session.state['strava_authenticated'] = False
             current_session.state['strava_athlete_id'] = None
-            logging.info(f"No Strava athlete ID found for chat_id {chat_id}. User needs to authenticate.")
+            logging.info("Session state updated: Strava not yet authenticated.")
         
-        logging.info(f"Updated session state before running agent: {current_session.state}")
+        logging.debug("Session state before running agent: %s", current_session.state)
 
         # --- HANDLE SPECIFIC COMMANDS ---
         if text.lower() == "/authenticate":
@@ -323,8 +322,7 @@ async def telegram_webhook(request: Request):
             
         # --- PASS MESSAGE TO ADK AGENT ---
         new_message_content = types.Content(role="user", parts=[types.Part(text=text)])
-        logging.info(f"Sending message to ADK agent...")
-        logging.info(f'Current session state: {current_session.state}')
+        logging.info("Sending message to ADK agent.")
 
         async for event in runner.run_async(
             user_id=user_id,
@@ -361,8 +359,8 @@ async def send_telegram_message(chat_id: int, text: str):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(telegram_api_url, json=payload)
-            response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
-            logging.info(f"Telegram API response: {response.json()}")
+            response.raise_for_status()
+            logging.info("Telegram message sent successfully.")
     except httpx.RequestError as e:
         logging.error(f"An error occurred while requesting Telegram API: {e}")
     except httpx.HTTPStatusError as e:

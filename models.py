@@ -1,10 +1,12 @@
+"""
+SQLAlchemy ORM models: tokens, activities, marathon plans, meals, and user targets.
+"""
 import sqlalchemy as sa
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column
-from typing import Optional, List
 from datetime import datetime, date
+from typing import Optional, List
 
-# A base class for declarative table definitions.
-# All ORM models will inherit from this.
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column
+
 Base = declarative_base()
 
 class Token(Base):

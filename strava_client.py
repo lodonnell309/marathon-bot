@@ -1,16 +1,17 @@
+"""
+Strava API client: OAuth, token refresh, and activity sync with the database.
+"""
 import os
 import logging
 import re
-from dotenv import load_dotenv
-from stravalib import Client
 from typing import Optional
 
-# --- Local Imports ---
-# Now using the refactored database functions and models
+from dotenv import load_dotenv
+from stravalib import Client
+
 from database import get_db_session, get_tokens, store_tokens, get_telegram_chat_id_by_athlete_id, get_athlete_id_by_telegram_chat_id
 from models import Activity
 
-# --- Load Environment Variables ---
 load_dotenv()
 client_id = os.getenv("STRAVA_CLIENT_ID")
 client_secret = os.getenv("STRAVA_CLIENT_SECRET")
@@ -74,8 +75,7 @@ def update_token(token_data: dict, athlete_id: int):
     """
     Callback function used by stravalib to store a refreshed token.
     """
-    logging.info(f"Token has been refreshed for athlete {athlete_id}. Updating database.")
-    # Corrected the function call here. Previously it was get_telegram_chat_id_by_telegram_chat_id
+    logging.info("Token refreshed; updating database.")
     telegram_chat_id = get_telegram_chat_id_by_athlete_id(athlete_id)
     if telegram_chat_id:
         store_tokens(
@@ -98,15 +98,17 @@ def get_authenticated_client(athlete_id: int) -> Optional[Client]:
     if not token_info:
         logging.error(f"No token found for athlete_id {athlete_id}")
         return None
-
-    client = Client()
-    client.access_token = token_info['access_token']
-    client.refresh_token = token_info['refresh_token']
-    client.expires_at = token_info['expires_at']
+ 
+    # The recommended way to initialize a client with existing tokens
+    # is to pass the token dictionary to the constructor.
+    # stravalib will use this to populate the access_token, refresh_token, and expires_at fields.
+    client = Client(access_token=token_info)
+ 
+    # The client also needs the client_id and client_secret for refreshing the token.
     client.client_id = client_id
     client.client_secret = client_secret
+    # Set the token updater to store refreshed tokens back to the database.
     client.token_updater = lambda token_data: update_token(token_data, athlete_id)
-    
     return client
 
 # --- Activity Management ---

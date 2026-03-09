@@ -1,16 +1,18 @@
+"""
+Database layer: engine, session factory, and CRUD for tokens and user data.
+"""
 import os
-from contextlib import contextmanager
-from typing import Optional, Generator
 import logging
 import urllib.parse
+from contextlib import contextmanager
+from typing import Optional, Generator
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker, Session
 
-# Import the models defined in models.py
 from models import Base, Token, Activity, MarathonPlan, Meal, UserTarget
 
-# The database connection string is now loaded from an environment variable.
+# Connection string from DATABASE_URL; falls back to SQLite if unset.
 # For Supabase PostgreSQL, this URL will look something like:
 # "postgresql://[user]:[password]@[host]:[port]/[database_name]"
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -40,9 +42,8 @@ def log_parsed_db_url(url: str):
 
 # The engine is the source of database connectivity.
 try:
-    # Sanitize the DATABASE_URL to remove any potential malformed parts
     parsed_url = urllib.parse.urlparse(DATABASE_URL)
-    if "@" in parsed_url.hostname:
+    if parsed_url.hostname and "@" in parsed_url.hostname:
         logging.error("Invalid hostname detected in DATABASE_URL. It should not contain a '@' symbol in the host part.")
         # Fallback to a safe URL to prevent a crash
         safe_url = "sqlite:///./strava.db"
@@ -54,8 +55,9 @@ except Exception as e:
     safe_url = "sqlite:///./strava.db"
     engine = create_engine(safe_url, pool_pre_ping=True)
 
-# Call the debug function to see what the engine is receiving
-log_parsed_db_url(DATABASE_URL)
+# Only log parsed DB URL when DEBUG is set (e.g. local development)
+if os.getenv("DEBUG"):
+    log_parsed_db_url(DATABASE_URL)
 
 
 # The Session object is the entry point for all database operations.
@@ -80,7 +82,7 @@ def get_db_session() -> Generator[Session, None, None]:
     finally:
         db.close()
 
-# --- Refactored Database Functions using SQLAlchemy ORM ---
+# --- Token and lookup helpers ---
 
 def store_tokens(athlete_id: int, access_token: str, refresh_token: str, expires_at: int, telegram_chat_id: int):
     """Stores or updates an athlete's Strava tokens and their associated Telegram chat ID."""

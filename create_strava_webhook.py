@@ -1,19 +1,24 @@
+"""
+One-off script to create or replace the Strava webhook subscription.
+Requires STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, STRAVA_VERIFY_TOKEN, STRAVA_WEBHOOK_URL in the environment.
+"""
+import json
+import logging
 import os
+
 import requests
 from dotenv import load_dotenv
-import logging
-import json
 
-# Set up basic logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 def create_webhook_subscription():
     """
     Creates a new Strava webhook subscription by making a POST request to the Strava API.
-    
-    This script reads the necessary credentials from a local .env file.
-    It constructs the callback URL using the NGROK_URL and the '/webhook' endpoint.
-    If successful, it prints the subscription ID.
+
+    Reads credentials from environment variables (e.g. via .env). Requires
+    STRAVA_WEBHOOK_URL to be the full callback URL (e.g. https://your-domain.com/webhook).
+    On success, prints the subscription ID.
     """
     logging.info("Loading environment variables from .env file...")
     load_dotenv()

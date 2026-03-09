@@ -1,7 +1,9 @@
+"""
+ADK agent definitions: main router plus Strava, motivation, and nutritionist sub-agents.
+"""
 from google.adk.agents import Agent
-import logging
-from typing import List, Optional
-from pydantic import BaseModel, Field 
+
+from database import get_athlete_id_by_telegram_chat_id
 from .agent_tools import (
     get_current_date,
     list_tables_in_db,
@@ -15,9 +17,6 @@ from .agent_tools import (
     get_last_x_runs,
     get_recent_run_summary
 )
-
-from database import get_athlete_id_by_telegram_chat_id
-
 
 strava_agent = Agent(
         name="strava_agent",
@@ -112,7 +111,7 @@ motivation_agent = Agent(
 nutritionist_agent = Agent(
         name="nutritionist_agent",
         description=(
-            "An intelligent agent that estimates the macronutrients of a meal given a photo of the meal or description of the meal. You also help estiblish nutrition goals "
+            "An intelligent agent that estimates the macronutrients of a meal given a photo of the meal or description of the meal. You also help establish nutrition goals."
         ),
         tools=[get_athlete_id_by_telegram_chat_id,upload_meal_to_db,update_user_targets,list_tables_in_db,
                 get_strava_db_schema,execute_query, get_current_date],
