@@ -7,7 +7,7 @@ stravalib==2.4
 python-dotenv==1.1.0
 httpx
 requests==2.32.4
-SQLAlchemy==2.0.42
+SQLAlchemy==2.0.48
 psycopg2-binary==2.9.10
 pydantic==2.11.7
 pydantic_core==2.33.2
