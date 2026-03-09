@@ -10,7 +10,7 @@ requests==2.32.4
 SQLAlchemy==2.0.42
 psycopg2-binary==2.9.10
 pydantic==2.11.7
-pydantic_core==2.33.2
+pydantic_core==2.42.0
 pytest==8.2.2
 pytest-asyncio==0.23.7
 types-python-dateutil==2.9.0.20250708
